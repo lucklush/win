@@ -119,12 +119,8 @@ Remove-Item .\err.txt
 
 Write-Output "Disabling built in accounts"
 
-"Administrator","Guest" | ForEach-Object {
-    $u = Get-ADUser $_
-    if ($u.Enabled) { Disable-ADAccount -Identity $u.SamAccountName; Write-Output "$_ disabled" }
-    else { Write-Output "$_ already disabled" }
-}
-
+Disable-ADAccount -Identity "Administrator"
+Disable-ADAccount -Identity "Guest"
 
 Write-Output "Creating any missing users"
 
