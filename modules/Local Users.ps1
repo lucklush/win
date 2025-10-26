@@ -209,3 +209,16 @@ foreach($item in $items) {
         reg delete "HKLM\SAM\SAM\Domains\Account\Users\$name" /v ResetData /f | Out-Null
     }
 }
+# Starting search in users' home directories
+Write-Host "--------------------All-home-dirs----------------------"
+# Get all directories inside C:\Users
+$usersDirs = Get-ChildItem -Path C:\Users -Directory
+
+# Loop through each directory and generate a tree for it
+foreach ($dir in $usersDirs) {
+    Write-Host "Tree for $($dir.FullName)"
+    Write-Host "-------------------------------------------------------------"
+    tree $dir.FullName /F /A
+    Write-Host "-------------------------------------------------------------"
+    Write-Host ""
+}
