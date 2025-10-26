@@ -124,16 +124,14 @@ Disable-ADAccount -Identity "Guest"
 
 Write-Output "Creating any missing users"
 
-$ErrorActionPreference = "SilentlyContinue"
-
-foreach($user in $userData.Keys) {
-    $adUser = Get-ADUser "$user"
-    if(!$adUser) {
-        Write-Output "Creating new user: $user"
-        net.exe user /add "$user" $password /y
+foreach ($user in $userData.Keys) {
+    $adUser = Get-ADUser -Filter "SamAccountName -eq '$user'" -ErrorAction SilentlyContinue
+    if (-not $adUser) {
+        Write-Output "Creating new AD user: $user"
+        New-ADUser -SamAccountName $user -Name $user -AccountPassword (ConvertTo-SecureString $password -AsPlainText -Force) -Enabled $true
     }
-    $adUser = $null # If the command fails, it doesn't set $adUser to null
 }
+
 
 $ErrorActionPreference = "Continue"
 
@@ -207,7 +205,7 @@ $users = Get-ADUser -Filter *
 
 foreach($user in $users) {
     if($user.Name -ne $currentUser) {
-        net.exe user "$($user.SamAccountName)" $password /y
+        Set-ADAccountPassword -Identity $user.SamAccountName -NewPassword (ConvertTo-SecureString $password -AsPlainText -Force) -Reset
         Set-ADUser "$user" -TrustedForDelegation $False -AllowReversiblePasswordEncryption $False -CannotChangePassword $False -ChangePasswordAtLogon $True -CompoundIdentitySupported $True -KerberosEncryptionType AES256 -PasswordNeverExpires $False -PasswordNotRequired $False -Clear scriptPath -SmartcardLogonRequired $False -AccountNotDelegated $True
         Set-ADAccountControl "$user" -DoesNotRequirePreAuth $False -AllowReversiblePasswordEncryption $False -TrustedForDelegation $False -TrustedToAuthForDelegation $False -UseDESKeyOnly $False -AccountNotDelegated $True
     }
