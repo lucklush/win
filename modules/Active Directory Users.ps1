@@ -239,14 +239,17 @@ Write-Output "Deleting SID Histories from users and groups"
 
 # Remove SIDHistory from users who have it
 $users = Get-ADUser -Filter {SIDHistory -like "*"} -Properties SIDHistory, servicePrincipalName
+$cred = Get-Credential
+Set-ADUser -Identity $user -Clear SIDHistory -Credential $cred
+
 foreach ($user in $users) {
     if ($user.SIDHistory) {
         Write-Output "Clearing SIDHistory from user: $($user.SamAccountName)"
-        Set-ADUser -Identity $user -Clear SIDHistory
+        Set-ADUser -Identity $user -Clear SIDHistory -Credential $cred
     }
     if ($user.servicePrincipalName) {
         Write-Output "Clearing servicePrincipalName from user: $($user.SamAccountName)"
-        Set-ADUser -Identity $user -Clear servicePrincipalName
+        Set-ADUser -Identity $user -Clear servicePrincipalName -Credential $cred
     }
 }
 
@@ -255,7 +258,7 @@ $groups = Get-ADGroup -Filter {SIDHistory -like "*"} -Properties SIDHistory
 foreach ($group in $groups) {
     if ($group.SIDHistory) {
         Write-Output "Clearing SIDHistory from group: $($group.SamAccountName)"
-        Set-ADGroup -Identity $group -Clear SIDHistory
+        Set-ADGroup -Identity $group -Clear SIDHistory -Credential $cred
     }
 }
 
