@@ -233,23 +233,24 @@ foreach($item in $items) {
 
 Write-Output "Deleting SID Histories from users and groups"
 
-$users = Get-ADUser -Filter *
-$groups = Get-ADGroup -Filter *
-
-foreach($user in $users) {
-    if($user.SIDHistory) {
-        Write-Output "Clearing SIDHistory value from the following user: $user"
-        Set-ADUser "$user" -Remove @{SIDHistory=$user.SIDHistory.Value}
+# Remove SIDHistory from users who have it
+$users = Get-ADUser -Filter {SIDHistory -like "*"} -Properties SIDHistory, servicePrincipalName
+foreach ($user in $users) {
+    if ($user.SIDHistory) {
+        Write-Output "Clearing SIDHistory from user: $($user.SamAccountName)"
+        Set-ADUser -Identity $user -Clear SIDHistory
     }
-    if($user.servicePrincipalName) {
-        Write-Output "Clearing servicePrincipalName value from the following user: $user"
-        Set-ADUser "$user" -Remove @{servicePrincipalName=$user.servicePrincipalName.Value}
+    if ($user.servicePrincipalName) {
+        Write-Output "Clearing servicePrincipalName from user: $($user.SamAccountName)"
+        Set-ADUser -Identity $user -Clear servicePrincipalName
     }
 }
 
-foreach($group in $groups) {
-    if($group.SIDHistory) {
-        Write-Output "Clearing SIDHistory value from the following group: $group"
-        Set-ADGroup "$group" -Remove @{SIDHistory=$group.SIDHistory.Value}
+# Remove SIDHistory from groups who have it
+$groups = Get-ADGroup -Filter {SIDHistory -like "*"} -Properties SIDHistory
+foreach ($group in $groups) {
+    if ($group.SIDHistory) {
+        Write-Output "Clearing SIDHistory from group: $($group.SamAccountName)"
+        Set-ADGroup -Identity $group -Clear SIDHistory
     }
 }
