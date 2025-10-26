@@ -262,16 +262,36 @@ foreach ($group in $groups) {
     }
 }
 
-# Starting search in users' home directories
-Write-Host "--------------------All-home-dirs----------------------"
-# Get all directories inside C:\Users
+function Show-TreeASCII {
+    param(
+        [string]$Path,
+        [string]$Prefix = ""
+    )
+
+    # Get all items including hidden/system, sort folders first
+    $items = Get-ChildItem -Path $Path -Force | Sort-Object PSIsContainer -Descending
+
+    for ($i = 0; $i -lt $items.Count; $i++) {
+        $item = $items[$i]
+        $isLast = ($i -eq $items.Count - 1)
+        $branch = if ($isLast) { "`-- " } else { "|-- " }
+
+        Write-Host "$Prefix$branch$item"
+
+        if ($item.PSIsContainer) {
+            $newPrefix = if ($isLast) { "$Prefix    " } else { "$Prefix|   " }
+            Show-TreeASCII -Path $item.FullName -Prefix $newPrefix
+        }
+    }
+}
+
+# Get all user directories
 $usersDirs = Get-ChildItem -Path C:\Users -Directory
 
-# Loop through each directory and generate a tree for it
 foreach ($dir in $usersDirs) {
     Write-Host "Tree for $($dir.FullName)"
     Write-Host "-------------------------------------------------------------"
-    tree $dir.FullName /F /A
-    Write-Host "-------------------------------------------------------------"
-    Write-Host ""
+    Show-TreeASCII -Path $dir.FullName
+    Write-Host "-------------------------------------------------------------`n"
 }
+
