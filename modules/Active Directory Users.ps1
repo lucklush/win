@@ -239,17 +239,16 @@ Write-Output "Deleting SID Histories from users and groups"
 
 # Remove SIDHistory from users who have it
 $users = Get-ADUser -Filter {SIDHistory -like "*"} -Properties SIDHistory, servicePrincipalName
-$cred = Get-Credential
-Set-ADUser -Identity $user -Clear SIDHistory -Credential $cred
+Set-ADUser -Identity $user -Clear SIDHistory
 
 foreach ($user in $users) {
     if ($user.SIDHistory) {
         Write-Output "Clearing SIDHistory from user: $($user.SamAccountName)"
-        Set-ADUser -Identity $user -Clear SIDHistory -Credential $cred
+        Set-ADUser -Identity $user -Clear SIDHistory
     }
     if ($user.servicePrincipalName) {
         Write-Output "Clearing servicePrincipalName from user: $($user.SamAccountName)"
-        Set-ADUser -Identity $user -Clear servicePrincipalName -Credential $cred
+        Set-ADUser -Identity $user -Clear servicePrincipalName
     }
 }
 
@@ -258,40 +257,20 @@ $groups = Get-ADGroup -Filter {SIDHistory -like "*"} -Properties SIDHistory
 foreach ($group in $groups) {
     if ($group.SIDHistory) {
         Write-Output "Clearing SIDHistory from group: $($group.SamAccountName)"
-        Set-ADGroup -Identity $group -Clear SIDHistory -Credential $cred
+        Set-ADGroup -Identity $group -Clear SIDHistory
     }
 }
 
-function Show-TreeASCII {
-    param(
-        [string]$Path,
-        [string]$Prefix = ""
-    )
-
-    # Get all items including hidden/system, sort folders first
-    $items = Get-ChildItem -Path $Path -Force | Sort-Object PSIsContainer -Descending
-
-    for ($i = 0; $i -lt $items.Count; $i++) {
-        $item = $items[$i]
-        $isLast = ($i -eq $items.Count - 1)
-        $branch = if ($isLast) { "`-- " } else { "|-- " }
-
-        Write-Host "$Prefix$branch$item"
-
-        if ($item.PSIsContainer) {
-            $newPrefix = if ($isLast) { "$Prefix    " } else { "$Prefix|   " }
-            Show-TreeASCII -Path $item.FullName -Prefix $newPrefix
-        }
-    }
-}
-
-# Get all user directories
+# Starting search in users' home directories
+Write-Host "--------------------All-home-dirs----------------------"
+# Get all directories inside C:\Users
 $usersDirs = Get-ChildItem -Path C:\Users -Directory
 
+# Loop through each directory and generate a tree for it
 foreach ($dir in $usersDirs) {
     Write-Host "Tree for $($dir.FullName)"
     Write-Host "-------------------------------------------------------------"
-    Show-TreeASCII -Path $dir.FullName
-    Write-Host "-------------------------------------------------------------`n"
+    tree $dir.FullName /F /A
+    Write-Host "-------------------------------------------------------------"
+    Write-Host ""
 }
-
