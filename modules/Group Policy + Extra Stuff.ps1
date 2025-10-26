@@ -572,6 +572,11 @@ Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Services\EventLog\Securit
 Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Services\EventLog\Security' -Name "AuditRegistry" -Value 2 | Out-Null
 
 Write-Host "[" -ForegroundColor white -NoNewLine; Write-Host "SUCCESS" -ForegroundColor green -NoNewLine; Write-Host "] Enable auditing of file system object changes on all drives" -ForegroundColor white
+#Disable quotas for all drives
+Get-PSDrive -PSProvider FileSystem | ForEach-Object {
+    fsutil quota track $_.Root 0
+    fsutil quota disable $_.Root
+}
 
 $volumes = Get-Volume | Where-Object {$_.DriveType -eq 'Fixed'}
 
