@@ -101,14 +101,17 @@ $builtInAccounts = [System.Collections.ArrayList]::new()
 
 $users = Get-ADUser -Filter * -Properties *
 
-foreach($user in $users) {
-    if($userData.Contains($user.Name)) { continue }
-    Write-Output "Deleting User: $($user.Name)"
-    ((net.exe user /delete "$($user.Name)") 2>&1) > err.txt
-    $err = (Get-Content .\err.txt)
-    if($err.Count -gt 5) { # Pretty much only reason why this would error would be if the requested deleted user is a built in account
+foreach ($user in $users) {
+    if ($userData.Contains($user.SamAccountName)) { continue }
+
+    # Skip built-in accounts
+    if ($user.SamAccountName -in @("Administrator","Guest","krbtgt")) {
         $builtInAccounts.Add($user) | Out-Null
+        continue
     }
+
+    Write-Output "Deleting User: $($user.SamAccountName)"
+    Remove-ADUser -Identity $user -Confirm:$false
     Write-Output ""
 }
 
