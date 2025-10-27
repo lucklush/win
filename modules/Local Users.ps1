@@ -168,16 +168,14 @@ if($renameAccounts) {
 
 Write-Output "Setting user passwords and properties"
 
+$passwordR = ConvertTo-SecureString "CyBeRpAtRiOt1#" -AsPlainText -Force
 $users = Get-LocalUser
 
-foreach($user in $users) {
+foreach ($user in $users) {
     $name = $user.Name
-    if($name -ne $currentUser) {
-        net user "$name" $password /y
-        net user "$name" /logonpasswordchg:yes /y
-        Set-LocalUser $user -PasswordNeverExpires $False -UserMayChangePassword $True
-    }
+    Set-LocalUser -Name $name -Password $passwordR -PasswordNeverExpires:$true -UserMayChangePassword:$true -PasswordChangeRequired:$true
 }
+
 
 Write-Output "Removing any logon scripts that users may have"
 
