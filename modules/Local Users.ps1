@@ -131,10 +131,15 @@ foreach ($group in $groups) {
     }
 }
 
-Write-Output "Adding users to groups defined in user data file..."
+Write-Host "Add users to groups" 
 
 foreach ($user in $userData.Keys) {
     $groups = $userData[$user]
+
+    if (-not $groups -or $groups.Count -eq 0) {
+        continue
+    }
+
     foreach ($group in $groups) {
         # Create the group if it doesn't exist
         if (-not (Get-LocalGroup -Name $group -ErrorAction SilentlyContinue)) {
@@ -151,6 +156,7 @@ foreach ($user in $userData.Keys) {
         }
     }
 }
+
 
 $guestUser = getGuestUser
 
@@ -172,8 +178,7 @@ $users = Get-LocalUser
 
 foreach ($user in $users) {
     $name = $user.Name
-    net user "$name" "CyBeRpAtRiOt1#" /passwordchg:yes /passwordreq:yes
-    net user "$name" /expires:never
+    net user "$name" "CyBeRpAtRiOt1#" /logonpasswordchg:yes /passwordreq:yes /passwordchg:yes /expires:2/20 /comment:"" /usecomment:""
 }
 
 
