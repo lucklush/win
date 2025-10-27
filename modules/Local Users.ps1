@@ -50,6 +50,19 @@ while(!(Test-Path .\UserData.txt)) {
 
 clear
 
+# Read user data
+$userData = @{}
+$lines = Get-Content .\UserData.txt
+
+foreach ($line in $lines) {
+    if (-not [string]::IsNullOrWhiteSpace($line)) {
+        $parts = $line -split '\|'
+        $user = $parts[0].Trim()
+        $groups = $parts[1] -split ',' | ForEach-Object { $_.Trim() }
+        $userData[$user] = $groups
+    }
+}
+
 $users = Get-LocalUser
 
 foreach($user in $users) {
@@ -79,15 +92,16 @@ Write-Output "Disabling built in accounts"
 Disable-LocalUser -Name "Administrator"
 Disable-LocalUser -Name "Guest"
 
-Write-Output "Creating any missing users"
-
-foreach($user in $userData.Keys) {
-    $err = (Get-LocalUser "$user") 2>&1
-    if($err) {
-        $err = $err.ToString()
-        if($err.Contains("was not found")) {
-            Write-Output "Creating new user: $user"
-            net.exe user /add "$user" $password /y
+foreach ($user in $userData.Keys) {
+    # Check if user exists
+    if (-not (Get-LocalUser -Name $user -ErrorAction SilentlyContinue)) {
+        # Create the user with a default password
+        $defaultPassword = ConvertTo-SecureString "P@ssw0rd123" -AsPlainText -Force
+        try {
+            New-LocalUser -Name $user -Password $defaultPassword -FullName $user -Description "Created by script"
+            Write-Host "Created user $user"
+        } catch {
+            Write-Warning "Failed to create user ${user}: $($_.Exception.Message)"
         }
     }
 }
@@ -117,19 +131,6 @@ foreach ($group in $groups) {
     }
 }
 
-# Read user data
-$userData = @{}
-$lines = Get-Content .\UserData.txt
-
-foreach ($line in $lines) {
-    if (-not [string]::IsNullOrWhiteSpace($line)) {
-        $parts = $line -split '\|'
-        $user = $parts[0].Trim()
-        $groups = $parts[1] -split ',' | ForEach-Object { $_.Trim() }
-        $userData[$user] = $groups
-    }
-}
-
 Write-Output "Adding users to groups defined in user data file..."
 
 foreach ($user in $userData.Keys) {
@@ -146,7 +147,7 @@ foreach ($user in $userData.Keys) {
             Add-LocalGroupMember -Group $group -Member $user -ErrorAction Stop
             Write-Host "Added $user to $group"
         } catch {
-            Write-Warning "Failed to add $user to $group: $($_.Exception.Message)"
+            Write-Warning "Failed to add ${user} to ${group}: $($_.Exception.Message)"
         }
     }
 }
@@ -171,7 +172,8 @@ $users = Get-LocalUser
 
 foreach ($user in $users) {
     $name = $user.Name
-    Set-LocalUser -Name $name -Password $passwordR -PasswordNeverExpires:$true -UserMayChangePassword:$true -PasswordChangeRequired:$true
+    net user "$name" "CyBeRpAtRiOt1#" /passwordchg:yes /passwordreq:yes
+    net user "$name" /expires:never
 }
 
 
