@@ -50,36 +50,10 @@ while(!(Test-Path .\UserData.txt)) {
 
 clear
 
-$userData = @{}
+$users = Get-LocalUser
 
-$lines = Get-Content .\UserData.txt
-
-foreach($line in $lines) {
-    $line = ([string]$line.ToString()).Trim()
-    $index = $line.IndexOf("|")
-    if($index -eq -1) {
-        $groups = [System.Collections.ArrayList]::new()
-        $groups.add("Users") | Out-Null
-        $userData[$line] = $groups # If no groups are provided, add user to Users group
-    } else {
-        $user = $line.Substring(0, $index).Trim()
-        $rawGroups = $line.Substring($index + 1).Split(",")
-        $groups = [System.Collections.ArrayList]::new()
-        for($i = 0; $i -lt $rawGroups.Count; $i += 1) {
-            $groups.add($rawGroups[$i].Trim()) | Out-Null
-        }
-        if(!$groups.Contains("Users")) {
-            $groups.add("Users") | Out-Null
-        }
-        $userData[$user] = $groups
-    }
-}
-
-if(!$userData.Contains($currentUser)) {
-    $groups = [System.Collections.ArrayList]::new()
-    $groups.Add("Administrators") | Out-Null
-    $groups.Add("Users") | Out-Null
-    $userData[$currentUser] = $groups
+foreach($user in $users) {
+    net.exe user "$user" /active:yes
 }
 
 Write-Output "Deleting unauthorized users"
@@ -102,12 +76,8 @@ foreach($user in $users) {
 Remove-Item .\err.txt
 
 Write-Output "Disabling built in accounts"
-
-foreach($user in $builtInAccounts) {
-    Write-Output "Disabling User: $user"
-    Disable-LocalUser "$user"
-    Write-Output ""
-}
+Disable-LocalUser -Name "Administrator"
+Disable-LocalUser -Name "Guest"
 
 Write-Output "Creating any missing users"
 
@@ -122,33 +92,61 @@ foreach($user in $userData.Keys) {
     }
 }
 
-Write-Output "Enabling all non-builtin accounts"
+# Prompt for your username
+$currentUser = Read-Host "Enter your username to exclude from Administrators"
 
-$users = Get-LocalUser
+Write-Output "Removing users from local groups (safe mode)..."
 
-foreach($user in $users) {
-    if($builtInAccounts.Contains($user.Name)) { continue }
-    net.exe user "$user" /active:yes
+# Get all local groups except 'Users'
+$groups = Get-LocalGroup | Where-Object { $_.Name -ne 'Users' }
+
+foreach ($group in $groups) {
+    # Get all members of the group
+    $members = Get-LocalGroupMember -Group $group.Name
+
+    foreach ($member in $members) {
+        # Skip the current user if it's the Administrators group
+        if ($group.Name -eq 'Administrators' -and $member.Name -eq $currentUser) {
+            Write-Host "Skipping $currentUser in Administrators"
+            continue
+        }
+
+        # Remove the member
+        Remove-LocalGroupMember -Group $group.Name -Member $member.Name -Confirm:$false
+        Write-Host "Removed $($member.Name) from $($group.Name)"
+    }
 }
 
-Write-Output "Removing the users in all the groups to reset them"
+# Read user data
+$userData = @{}
+$lines = Get-Content .\UserData.txt
 
-$groups = Get-LocalGroup
+foreach ($line in $lines) {
+    if (-not [string]::IsNullOrWhiteSpace($line)) {
+        $parts = $line -split '\|'
+        $user = $parts[0].Trim()
+        $groups = $parts[1] -split ',' | ForEach-Object { $_.Trim() }
+        $userData[$user] = $groups
+    }
+}
 
-foreach($group in $groups) { Get-LocalGroupMember "$group" | Remove-LocalGroupMember "$group" }
+Write-Output "Adding users to groups defined in user data file..."
 
-Write-Output "Adding users to their groups defined in user data file"
-
-foreach($user in $userData.Keys) {
+foreach ($user in $userData.Keys) {
     $groups = $userData[$user]
-    foreach($group in $groups) {
-        $err = (Add-LocalGroupMember "$group" "$user") 2>&1
-        if($err) {
-            $err = $err.ToString()
-            if($err.Contains("was not found")) {
-                New-LocalGroup "$group" | Out-Null
-                Add-LocalGroupMember "$group" "$user"
-            }
+    foreach ($group in $groups) {
+        # Create the group if it doesn't exist
+        if (-not (Get-LocalGroup -Name $group -ErrorAction SilentlyContinue)) {
+            New-LocalGroup -Name $group
+            Write-Host "Created group $group"
+        }
+
+        # Add user to the group
+        try {
+            Add-LocalGroupMember -Group $group -Member $user -ErrorAction Stop
+            Write-Host "Added $user to $group"
+        } catch {
+            Write-Warning "Failed to add $user to $group: $($_.Exception.Message)"
         }
     }
 }
