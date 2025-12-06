@@ -163,6 +163,28 @@ foreach($user in $users) {
     $u.setInfo()
 }
 
+Write-Host "Looking for users in suspicious groups"
+
+# Get all local groups
+$groups = Get-LocalGroup | Where-Object { $_.Name -ne "Users" -and $_.Name -ne "Administrators" }
+
+foreach ($group in $groups) {
+    # Get members of the group
+    $members = Get-LocalGroupMember -Group $group.Name -ErrorAction SilentlyContinue
+
+    # Only print if there are members
+    if ($members.Count -gt 0) {
+        Write-Output "Group: $($group.Name)"
+        foreach ($member in $members) {
+            Write-Output "  $($member.Name)"
+        }
+        Write-Output ""  # blank line for readability
+    }
+}
+
+Write-Host "Look through the above for anything suspicious and then press Enter to continue..."
+Read-Host
+
 Write-Output "Mitigating RID Hijacking and deleting ResetData keys" # ResetData keys are security questions, which as of writing this, are stored IN PLAIN TEXT (wtf microsoft)
 
 $items = Get-ChildItem -Path "HKLM:\SAM\SAM\Domains\Account\Users"
