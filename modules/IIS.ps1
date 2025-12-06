@@ -112,6 +112,20 @@ Add-WebConfigurationProperty -Filter "/system.applicationHost/sites/siteDefaults
 Set-WebConfigurationProperty -pspath 'MACHINE/WEBROOT/APPHOST' -Filter "system.applicationHost/sites/siteDefaults/Logfile" -Name "logExtFileFlags" -Value "Date,Time,ClientIP,UserName,ServerIP,Method,UriStem,UriQuery,HttpStatus,Win32Status,BytesSent,BytesRecv,TimeTaken,ServerPort,UserAgent,Cookie,Referer,ProtocolVersion,Host,HttpSubStatus"
 Set-WebConfigurationProperty -pspath 'MACHINE/WEBROOT/APPHOST' -Filter "system.applicationHost/sites/siteDefaults/tracing/traceFailedRequestsLogging" -Name "enabled" -Value "True"
 
+# Get all existing sites and apply logging settings
+Get-ChildItem IIS:\Sites | ForEach-Object {
+    $siteName = $_.Name
+
+    # Set log directory
+    Set-ItemProperty "IIS:\Sites\$siteName" -Name logFile.directory -Value "C:\NewIISLogLocation"
+
+    # Set extended log fields
+    Set-ItemProperty "IIS:\Sites\$siteName" -Name logFile.logExtFileFlags -Value "Date,Time,ClientIP,UserName,ServerIP,Method,UriStem,UriQuery,HttpStatus,Win32Status,BytesSent,BytesRecv,TimeTaken,ServerPort,UserAgent,Cookie,Referer,ProtocolVersion,Host,HttpSubStatus"
+
+    # Enable Failed Request Tracing
+    Set-WebConfigurationProperty -Filter "system.applicationHost/sites/site[@name='$siteName']/tracing/traceFailedRequestsLogging" -Name "enabled" -Value "True"
+}
+
 #All that glaze for what
 reg add "HKLM\SYSTEM\CurrentControlSet\Services\HTTP\Parameters" /v RemoveServerHeader /t REG_DWORD /d 1 /f
 
