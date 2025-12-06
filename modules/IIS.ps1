@@ -112,6 +112,11 @@ Add-WebConfigurationProperty -Filter "/system.applicationHost/sites/siteDefaults
 Set-WebConfigurationProperty -pspath 'MACHINE/WEBROOT/APPHOST' -Filter "system.applicationHost/sites/siteDefaults/Logfile" -Name "logExtFileFlags" -Value "Date,Time,ClientIP,UserName,ServerIP,Method,UriStem,UriQuery,HttpStatus,Win32Status,BytesSent,BytesRecv,TimeTaken,ServerPort,UserAgent,Cookie,Referer,ProtocolVersion,Host,HttpSubStatus"
 Set-WebConfigurationProperty -pspath 'MACHINE/WEBROOT/APPHOST' -Filter "system.applicationHost/sites/siteDefaults/tracing/traceFailedRequestsLogging" -Name "enabled" -Value "True"
 
+#All that glaze for what
+reg add "HKLM\SYSTEM\CurrentControlSet\Services\HTTP\Parameters" /v RemoveServerHeader /t REG_DWORD /d 1 /f
+
+net stop http /y
+net start http
 Restart-Service W3SVC
 
 Write-Output "Search IIS directory for any sus php files (like a shell or smth)"
