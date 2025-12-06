@@ -37,10 +37,6 @@ Get-ChildItem -Path "HKLM:\SAM\SAM" -Recurse | ForEach-Object { # Reset the owne
 
 clear
 
-$password = "k97(0HaZ8~9^QMcxsg15rX-z"
-
-$currentUser = (GetSettings).CurrentUser
-
 while(!(Test-Path .\UserData.txt)) {
     clear
     Write-Output "User data file not found, make a file called UserData.txt in the main directory"
