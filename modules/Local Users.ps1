@@ -50,137 +50,109 @@ while(!(Test-Path .\UserData.txt)) {
 
 clear
 
-# Read user data
-$userData = @{}
+# Read file
 $lines = Get-Content .\UserData.txt
 
+# Variables for data from file
+$defaultUsers = "Administrator", "DefaultAccount", "Guest", "WDAGUtilityAccount"
+$mode = ""
+$admins = @()
+$users = @()
+
 foreach ($line in $lines) {
-    if (-not [string]::IsNullOrWhiteSpace($line)) {
-        $parts = $line -split '\|'
-        $user = $parts[0].Trim()
-        $groups = $parts[1] -split ',' | ForEach-Object { $_.Trim() }
-        $userData[$user] = $groups
-    }
-}
+    if ([string]::IsNullOrWhiteSpace($line)) { continue }
 
-$users = Get-LocalUser
+    switch -Regex ($line) {
+        '^Authorized Administrators:' { $mode = "admins"; continue }
+        '^Authorized Users:' { $mode = "users"; continue }
 
-foreach($user in $users) {
-    net.exe user "$user" /active:yes
-}
-
-Write-Output "Deleting unauthorized users"
-
-$builtInAccounts = [System.Collections.ArrayList]::new()
-
-$users = Get-LocalUser
-
-foreach($user in $users) {
-    if($userData.Contains($user.Name)) { continue }
-    Write-Output "Deleting User: $user"
-    ((net.exe user /delete "$user") 2>&1) > err.txt
-    $err = (Get-Content .\err.txt)
-    if($err.Count -gt 5) { # Pretty much only reason why this would error would be if the requested deleted user is a built in account
-        $builtInAccounts.Add($user) | Out-Null
-    }
-    Write-Output ""
-}
-
-Remove-Item .\err.txt
-
-Write-Output "Disabling built in accounts"
-Disable-LocalUser -Name "Administrator"
-Disable-LocalUser -Name "Guest"
-
-foreach ($user in $userData.Keys) {
-    # Check if user exists
-    if (-not (Get-LocalUser -Name $user -ErrorAction SilentlyContinue)) {
-        # Create the user with a default password
-        $defaultPassword = ConvertTo-SecureString "P@ssw0rd123" -AsPlainText -Force
-        try {
-            New-LocalUser -Name $user -Password $defaultPassword -FullName $user -Description "Created by script"
-            Write-Host "Created user $user"
-        } catch {
-            Write-Warning "Failed to create user ${user}: $($_.Exception.Message)"
+        default {
+            if ($mode -eq "admins") { $admins += $line.Trim() }
+            elseif ($mode -eq "users") { $users += $line.Trim() }
         }
     }
 }
 
-# Prompt for your username
-$currentUser = Read-Host "Enter your username to exclude from Administrators"
+Write-Host "Admins from file: $($admins -join ', ')"
+Write-Host "Users from file: $($users -join ', ')"
 
-Write-Output "Removing users from local groups (safe mode)..."
+# ------------------------------
+# START ACCOUNT ENFORCEMENT LOGIC
+# ------------------------------
 
-# Get all local groups except 'Users'
-$groups = Get-LocalGroup | Where-Object { $_.Name -ne 'Users' }
+$localAdminsGroup = "Administrators"
+$localUsersGroup  = "Users"
 
-foreach ($group in $groups) {
-    # Get all members of the group
-    $members = Get-LocalGroupMember -Group $group.Name
+# Default password for new accounts
+$defaultPassword = ConvertTo-SecureString "CyberPatriot1#" -AsPlainText -Force
 
-    foreach ($member in $members) {
-        # Skip the current user if it's the Administrators group
-        if ($group.Name -eq 'Administrators' -and $member.Name -eq $currentUser) {
-            Write-Host "Skipping $currentUser in Administrators"
-            continue
-        }
+# Get local accounts
+$localAccounts = Get-LocalUser | Select-Object -ExpandProperty Name
 
-        # Remove the member
-        Remove-LocalGroupMember -Group $group.Name -Member $member.Name -Confirm:$false
-        Write-Host "Removed $($member.Name) from $($group.Name)"
+# 1. DELETE accounts that aren't in either list
+foreach ($acct in $localAccounts) {
+    if ($acct -notin $admins -and $acct -notin $users -and $acct -notin $defaultUsers) {
+        Write-Host "Deleting account not in list: $acct"
+        Remove-LocalUser -Name $acct
     }
 }
 
-Write-Host "Add users to groups" 
+# Refresh local accounts again
+$localAccounts = Get-LocalUser | Select-Object -ExpandProperty Name
 
-foreach ($user in $userData.Keys) {
-    $groups = $userData[$user]
-
-    if (-not $groups -or $groups.Count -eq 0) {
-        continue
-    }
-
-    foreach ($group in $groups) {
-        # Create the group if it doesn't exist
-        if (-not (Get-LocalGroup -Name $group -ErrorAction SilentlyContinue)) {
-            New-LocalGroup -Name $group
-            Write-Host "Created group $group"
-        }
-
-        # Add user to the group
-        try {
-            Add-LocalGroupMember -Group $group -Member $user -ErrorAction Stop
-            Write-Host "Added $user to $group"
-        } catch {
-            Write-Warning "Failed to add ${user} to ${group}: $($_.Exception.Message)"
-        }
+# 4. CREATE missing user accounts
+foreach ($u in $users) {
+    if ($u -notin $localAccounts) {
+        Write-Host "Creating NEW USER account: $u"
+        New-LocalUser -Name $u -Password $defaultPassword -Description "Authorized User"
+        Add-LocalGroupMember -Group $localUsersGroup -Member $u
     }
 }
 
+# 5. CREATE missing admin accounts
+foreach ($a in $admins) {
+    if ($a -notin $localAccounts) {
+        Write-Host "Creating NEW ADMIN account: $a"
+        New-LocalUser -Name $a -Password $defaultPassword -Description "Authorized Administrator"
+        Add-LocalGroupMember -Group $localAdminsGroup -Member $a
+    }
+}
+
+net user administrator /active:no
+net user guest /active:no
+
+Write-Host ""
+Write-Host "=== DONE ==="
+Write-Host "Current Admins:"
+(Get-LocalGroupMember Administrators).Name | ForEach-Object { Write-Host "  $_" }
+
+Write-Host ""
+Write-Host "Current Users:"
+(Get-LocalGroupMember Users).Name | ForEach-Object { Write-Host "  $_" }
+
+# Combine user and admin arrays
+$allAccounts = $admins + $users
+
+# Loop through each account and set the password
+foreach ($acct in $allAccounts) {
+    # Make sure the account exists before attempting to set password
+    if (Get-LocalUser -Name $acct -ErrorAction SilentlyContinue) {
+        Write-Host "Setting password for $acct"
+        Set-LocalUser -Name $acct -Password $defaultPassword
+    } else {
+        Write-Host "Account $acct does not exist, skipping password change"
+    }
+    net user $acct /passwordreq:yes | Out-Null
+    net user $acct /passwordchg:yes | Out-Null
+    net user $acct /expires:"never" | Out-Null
+    Set-LocalUser -Name $acct -PasswordNeverExpires $false | Out-Null
+    net user $acct /logonpasswordchg:yes | Out-Null
+    net user $acct /active:yes | Out-Null
+}
 
 $guestUser = getGuestUser
 
 Add-LocalGroupMember "Guests" $guestUser
-
-$renameAccounts = (Read-Host "Rename builtin accounts? (Might break some checks) (y/n)") -eq "y"
-
-if($renameAccounts) {
-    foreach($user in $builtInAccounts) {
-        $newName = -join ((48..57) + (97..122) | Get-Random -Count 20 | % {[char]$_})
-        Rename-LocalUser "$user" "$newName"
-    }
-}
-
-Write-Output "Setting user passwords and properties"
-
-$passwordR = ConvertTo-SecureString "CyBeRpAtRiOt1#" -AsPlainText -Force
-$users = Get-LocalUser
-
-foreach ($user in $users) {
-    $name = $user.Name
-    net user "$name" "CyBeRpAtRiOt1#" /logonpasswordchg:yes /passwordreq:yes /passwordchg:yes /expires:2/20 /comment:"" /usecomment:""
-}
-
 
 Write-Output "Removing any logon scripts that users may have"
 
@@ -225,4 +197,3 @@ foreach ($dir in $usersDirs) {
     Write-Host "-------------------------------------------------------------"
     Write-Host ""
 }
-
