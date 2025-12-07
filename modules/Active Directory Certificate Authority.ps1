@@ -8,6 +8,8 @@ if(!((GetSettings).ADInstalled)) {
 Add-WindowsFeature Adcs-Cert-Authority -IncludeManagementTools
 Install-AdcsCertificationAuthority -CAtype EnterpriseRootCA
 
+reg add "HKLM\SOFTWARE\Policies\Microsoft\SystemCertificates\AuthRoot" /v EnableDisallowedCertAutoUpdate /t REG_DWORD /d 1 /f
+
 net.exe stop ntds /y
 net.exe start ntds
 
