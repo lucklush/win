@@ -202,16 +202,25 @@ foreach($item in $items) {
         reg delete "HKLM\SAM\SAM\Domains\Account\Users\$name" /v ResetData /f | Out-Null
     }
 }
-# Starting search in users' home directories
-Write-Host "--------------------All-home-dirs----------------------"
-# Get all directories inside C:\Users
-$usersDirs = Get-ChildItem -Path C:\Users -Directory
+function Show-Tree {
+    param(
+        [string]$Path = ".",
+        [int]$Indent = 0
+    )
 
-# Loop through each directory and generate a tree for it
-foreach ($dir in $usersDirs) {
-    Write-Host "Tree for $($dir.FullName)"
-    Write-Host "-------------------------------------------------------------"
-    tree $dir.FullName /F /A
-    Write-Host "-------------------------------------------------------------"
-    Write-Host ""
+    Get-ChildItem $Path -Force:$false |
+        Where-Object {
+            -not ($_.Attributes -match "Hidden|System") -and
+            -not ($_.Name.StartsWith('.'))
+        } |
+        ForEach-Object {
+            Write-Output (" " * $Indent + "|-- " + $_.Name)
+
+            # Only recurse into directories that do NOT start with '.'
+            if ($_.PSIsContainer -and -not ($_.Name.StartsWith('.'))) {
+                Show-Tree -Path $_.FullName -Indent ($Indent + 2)
+            }
+        }
 }
+
+Show-Tree -Path "C:\Users"
