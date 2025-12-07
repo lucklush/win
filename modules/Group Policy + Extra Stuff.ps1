@@ -1446,6 +1446,7 @@ $clientFlags = @{
     "RequireSecuritySignature" = $True
     "SkipCertificateCheck" = $False
     "BlockNTLM" = $True
+    "EnableSMBQUIC" = $True
 }
 
 Set-SmbServerConfiguration -AnnounceComment "" -Confirm:0
@@ -1463,6 +1464,10 @@ foreach($flag in $clientFlags.Keys) {
     if($value -eq $True) { $value = 1 }
     Invoke-Command -ScriptBlock ([Scriptblock]::Create("Set-SmbClientConfiguration -$flag $value -Confirm:0"))
 }
+
+#Seem to be unavailable in the smb cmdlet
+reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows\LanmanServer" /v EnableAuthRateLimiter /t REG_DWORD /d 1 /f
+reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows\LanmanServer" /v InvalidAuthenticationDelayTimeInMs /t REG_DWORD /d 2000 /f
 
 $shares = Get-SmbShare
 
