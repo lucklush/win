@@ -1445,6 +1445,7 @@ $clientFlags = @{
     "ForceSMBEncryptionOverQuic" = $True
     "RequireSecuritySignature" = $True
     "SkipCertificateCheck" = $False
+    "BlockNTLM" = $True
 }
 
 Set-SmbServerConfiguration -AnnounceComment "" -Confirm:0
