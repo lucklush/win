@@ -122,3 +122,4 @@ Disable-NetAdapterBinding -Name "*" -ComponentID ms_tcpip6
 reg add "HKLM\SYSTEM\CurrentControlSet\Services\Tcpip6\Parameters" /v DisabledComponents /t REG_DWORD /d 0xff /f
 
 Write-Output "Until I'm able to script the automatic import of this, go into secpol.msc > Windows Defender Firewall... > Windows Defender Firewall... > Right Click > Import Policy > wfw file in files directory"
+Write-Output "Also when you are there go into connection security rules. Whatever is in there make sure you require secuirty for incoming and outgoing inside the authentication tab for each"
