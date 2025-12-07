@@ -224,3 +224,4 @@ function Show-Tree {
 }
 
 Show-Tree -Path "C:\Users"
+pause
