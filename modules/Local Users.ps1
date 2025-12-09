@@ -93,6 +93,24 @@ foreach ($acct in $localAccounts) {
     }
 }
 
+# Update local accounts since some may be deleted
+$localAccounts = Get-LocalUser | Select-Object -ExpandProperty Name
+
+# 2. Convert users → admins if they appear in admin list
+foreach ($acct in $localAccounts) {
+    if ($acct -in $admins -and $acct -notin $defaultUsers) {
+        Add-LocalGroupMember -Group $localAdminsGroup -Member $acct -ErrorAction SilentlyContinue
+    }
+}
+
+# 3. Convert admins → users if they appear in user list
+foreach ($acct in $localAccounts) {
+    if ($acct -in $users -and notin $admins -and $acct -notin $defaultUsers) {
+        Add-LocalGroupMember -Group $localUsersGroup -Member $acct -ErrorAction SilentlyContinue
+        Remove-LocalGroupMember -Group $localAdminsGroup -Member $acct -ErrorAction SilentlyContinue
+    }
+}
+
 # Refresh local accounts again
 $localAccounts = Get-LocalUser | Select-Object -ExpandProperty Name
 
@@ -110,6 +128,7 @@ foreach ($a in $admins) {
     if ($a -notin $localAccounts) {
         Write-Host "Creating NEW ADMIN account: $a"
         New-LocalUser -Name $a -Password $defaultPassword -Description "Authorized Administrator"
+        Add-LocalGroupMember -Group $localUsersGroup -Member $a
         Add-LocalGroupMember -Group $localAdminsGroup -Member $a
     }
 }
