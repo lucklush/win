@@ -50,7 +50,7 @@ clear
 $lines = Get-Content .\UserData.txt
 
 # Variables for data from file
-$defaultUsers = "Administrator", "DefaultAccount", "Guest", "WDAGUtilityAccount"
+$defaultUsers = "Administrator","DefaultAccount","Guest","WDAGUtilityAccount","SYSTEM","LOCAL SERVICE","NETWORK SERVICE","DWM-1","UMFD-0","UMFD-1","sshd","ssh-agent","LxssManagerUser","IUSR","IWAM","DefaultAppPool","vmms","vmcompute","MSSQLSERVER","SQLSERVERAGENT", "Spooler","TrustedInstaller"
 $mode = ""
 $admins = @()
 $users = @()
