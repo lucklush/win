@@ -105,7 +105,7 @@ foreach ($acct in $localAccounts) {
 
 # 3. Convert admins → users if they appear in user list
 foreach ($acct in $localAccounts) {
-    if ($acct -in $users -and notin $admins -and $acct -notin $defaultUsers) {
+    if ($acct -in $users -and $acct -notin $admins -and $acct -notin $defaultUsers) {
         Add-LocalGroupMember -Group $localUsersGroup -Member $acct -ErrorAction SilentlyContinue
         Remove-LocalGroupMember -Group $localAdminsGroup -Member $acct -ErrorAction SilentlyContinue
     }
