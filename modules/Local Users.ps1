@@ -221,26 +221,37 @@ foreach($item in $items) {
         reg delete "HKLM\SAM\SAM\Domains\Account\Users\$name" /v ResetData /f | Out-Null
     }
 }
+# Ask for the username to skip
+$skipUser = Read-Host "Enter your username (case-sensitive)"
+
 function Show-Tree {
     param(
         [string]$Path = ".",
         [int]$Indent = 0
     )
 
-    Get-ChildItem $Path -Force:$false |
-        Where-Object {
-            -not ($_.Attributes -match "Hidden|System") -and
-            -not ($_.Name.StartsWith('.'))
-        } |
-        ForEach-Object {
-            Write-Output (" " * $Indent + "|-- " + $_.Name)
-
-            # Only recurse into directories that do NOT start with '.'
-            if ($_.PSIsContainer -and -not ($_.Name.StartsWith('.'))) {
-                Show-Tree -Path $_.FullName -Indent ($Indent + 2)
-            }
+    Get-ChildItem -LiteralPath $Path | ForEach-Object {
+        # Skip hidden folders
+        if ($_.PSIsContainer -and ($_.Attributes -band [System.IO.FileAttributes]::Hidden)) {
+            return
         }
+
+        # Skip the specified user folder if in C:\Users
+        if ($Path -eq "C:\Users" -and $_.PSIsContainer -and $_.Name -eq $skipUser) {
+            return
+        }
+
+        # Print the current item
+        Write-Output (" " * $Indent + "|-- " + $_.Name)
+
+        # Recurse into directories
+        if ($_.PSIsContainer) {
+            Show-Tree -Path $_.FullName -Indent ($Indent + 2)
+        }
+    }
 }
 
+# Start at C:\Users
 Show-Tree -Path "C:\Users"
+Write-Host "Look for any prohibited files/malware above. Still do a manual search though"
 pause
