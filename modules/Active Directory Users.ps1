@@ -87,8 +87,9 @@ Write-Host "Users from file: $($users -join ', ')"
 # START ACCOUNT ENFORCEMENT LOGIC
 # ------------------------------
 
-$localAdminsGroup = "Administrators"
-$localUsersGroup  = "Domain Users"
+# Define your AD groups
+$adAdminsGroup = "Domain Admins"         # AD group for admins
+$adUsersGroup = "Domain Users"           # AD group for regular users
 
 # Default password for new accounts
 $defaultPassword = ConvertTo-SecureString "CyberPatriot1#" -AsPlainText -Force
@@ -99,92 +100,115 @@ $users = Get-ADUser -Filter * -Properties *
 
 foreach($user in $users) { Set-AdObject "$($user.ObjectGUID)" -ProtectedFromAccidentalDeletion $false -Confirm:$false }
 
-Write-Output "Deleting unauthorized users"
-
-$builtInAccounts = [System.Collections.ArrayList]::new()
-
-$users = Get-ADUser -Filter * -Properties *
-
-foreach ($user in $users) {
-    if ($userData.Contains($user.SamAccountName)) { continue }
-
-    # Skip built-in accounts
-    if ($user.SamAccountName -in @("Administrator","Guest","krbtgt")) {
-        $builtInAccounts.Add($user) | Out-Null
-        continue
+$adAccounts = Get-ADUser -Filter * | Select-Object -ExpandProperty SamAccountName | ForEach-Object {
+    if ($_ -like "*\*") {
+        ($_ -split "\\")[-1]  # take the part after the last backslash
+    } else {
+        $_
     }
-
-    Write-Output "Deleting User: $($user.SamAccountName)"
-    Remove-ADUser -Identity $user -Confirm:$false
-    Write-Output ""
 }
 
-Remove-Item .\err.txt
+# 1. Delete bad users
+foreach ($acct in $adAccounts) {
+    if ($acct -notin $admins -and $acct -notin $users -and $acct -notin $defaultUsers) {
+        Write-Host "Deleting account not in list: $acct"
+        Remove-ADUser -Identity $acct -Confirm:$false
+    }
+}
+
+$adAccounts = Get-ADUser -Filter * | Select-Object -ExpandProperty SamAccountName | ForEach-Object {
+    if ($_ -like "*\*") {
+        ($_ -split "\\")[-1]  # take the part after the last backslash
+    } else {
+        $_
+    }
+}
+
+# 2. Convert users → admins if they appear in admin list
+foreach ($acct in $adAccounts) {
+    if ($acct -in $admins -and $acct -notin $defaultUsers) {
+        try {
+            Add-ADGroupMember -Identity $adAdminsGroup -Members $acct -ErrorAction SilentlyContinue
+            Write-Host "Added $acct to $adAdminsGroup"
+        } catch {
+            Write-Warning "Could not add $acct to $adAdminsGroup: $_"
+        }
+    }
+}
+
+# 3. Convert admins → users if they appear in user list
+foreach ($acct in $adAccounts) {
+    if ($acct -in $users -and $acct -notin $admins -and $acct -notin $defaultUsers) {
+        try {
+            # Add to regular users group
+            Add-ADGroupMember -Identity $adUsersGroup -Members $acct -ErrorAction SilentlyContinue
+
+            # Remove from admin group
+            Remove-ADGroupMember -Identity $adAdminsGroup -Members $acct -Confirm:$false -ErrorAction SilentlyContinue
+
+            Write-Host "Moved $acct to $adUsersGroup and removed from $adAdminsGroup"
+        } catch {
+            Write-Warning "Could not move $acct: $_"
+        }
+    }
+}
+
+$adAccounts = Get-ADUser -Filter * | Select-Object -ExpandProperty SamAccountName | ForEach-Object {
+    if ($_ -like "*\*") {
+        ($_ -split "\\")[-1]  # take the part after the last backslash
+    } else {
+        $_
+    }
+}
+
+# 4. CREATE missing user accounts
+foreach ($u in $users) {
+    if ($u -notin $adAccounts) {
+        Write-Host "Creating NEW USER account: $u"
+        New-ADUser -Name $u `
+                   -SamAccountName $u `
+                   -AccountPassword $defaultPassword `
+                   -Enabled $true `
+                   -Description "Authorized User" `
+                   -PasswordNeverExpires $false `
+                   -ChangePasswordAtLogon $true
+
+        # Add to Domain Users group (usually automatic, but safe to ensure)
+        Add-ADGroupMember -Identity $adUsersGroup -Members $u
+    }
+}
+
+# 5. CREATE missing admin accounts
+foreach ($a in $admins) {
+    if ($a -notin $adAccounts) {
+        Write-Host "Creating NEW ADMIN account: $a"
+        New-ADUser -Name $a `
+                   -SamAccountName $a `
+                   -AccountPassword $defaultPassword `
+                   -Enabled $true `
+                   -Description "Authorized Administrator" `
+                   -PasswordNeverExpires $false `
+                   -ChangePasswordAtLogon $true
+
+        # Add to groups
+        Add-ADGroupMember -Identity $adUsersGroup -Members $a
+        Add-ADGroupMember -Identity $adAdminsGroup -Members $a
+    }
+}
 
 Write-Output "Disabling built in accounts"
 
 Disable-ADAccount -Identity "Administrator"
 Disable-ADAccount -Identity "Guest"
 
-Write-Output "Creating any missing users"
-
-foreach ($user in $userData.Keys) {
-    $adUser = Get-ADUser -Filter "SamAccountName -eq '$user'" -ErrorAction SilentlyContinue
-    if (-not $adUser) {
-        Write-Output "Creating new AD user: $user"
-        New-ADUser -SamAccountName $user -Name $user -AccountPassword (ConvertTo-SecureString $password -AsPlainText -Force) -Enabled $true
-    }
-}
-
-
 $ErrorActionPreference = "Continue"
 
 Write-Output "Enabling all non-builtin accounts"
 
-$users = Get-ADUser -Filter * -Properties *
+$allUsers = $users + $admins
 
-foreach($user in $users) {
-    if($builtInAccounts.Contains($user.Name)) { continue }
+foreach($user in $allUsers) {
     Enable-ADAccount "$user"
-}
-
-Write-Output "Setting all users primary group to 'Domain Users'"
-
-$users = Get-ADUser -Filter *
-$domainUsersGroup = Get-ADGroup "Domain Users" -Properties @("primaryGroupToken")
-
-foreach($user in $users) { Set-ADUser "$user" -replace @{primaryGroupID=$domainUsersGroup.primaryGroupToken} }
-
-Write-Output "Removing the users in all the groups (besides Domain Users) to reset them"
-
-$groups = Get-ADGroup -Filter *
-
-foreach($group in $groups) {
-    if($group.Name -eq "Domain Users") { continue }
-    $members = Get-ADGroupMember "$group"
-    foreach($member in $members) {
-        if("$member".Length -ne 0) {
-            Write-Output "Removing $($member.Name) from $($group.Name)"
-            Remove-ADGroupMember "$group" "$member" -Confirm:$false
-        }
-    }
-}
-
-Write-Output "Adding users to their groups defined in user data file"
-
-$ErrorActionPreference = "SilentlyContinue"
-
-foreach($user in $userData.Keys) {
-    $groups = $userData[$user]
-    foreach($group in $groups) {
-        $adGroup = Get-ADGroup "$group"
-        if(!$adGroup) {
-            Write-Output "Creating new group: $group"
-            New-ADGroup "$group" -GroupScope Global | Out-Null
-        }
-        Add-ADGroupMember "$group" "$user"
-        $adGroup = $null
-    }
 }
 
 $guestUser = getGuestUser
@@ -193,26 +217,34 @@ Add-ADGroupMember "Domain Guests" $guestUser
 
 $ErrorActionPreference = "Continue"
 
-$renameAccounts = (Read-Host "Rename builtin accounts? (Might break some checks) (y/n)") -eq "y"
-
-if($renameAccounts) {
-    foreach($user in $builtInAccounts) {
-        $newName = -join ((48..57) + (97..122) | Get-Random -Count 20 | % {[char]$_})
-        Rename-LocalUser "$($user.Name)" "$newName"
-        Rename-ADObject "$($user.ObjectGUID)" $newName
-    }
-}
-
 Write-Output "Setting user passwords and properties"
 
-$users = Get-ADUser -Filter *
+foreach ($user in $allUsers) {
 
-foreach($user in $users) {
-    if($user.Name -ne $currentUser) {
-        Set-ADAccountPassword -Identity $user.SamAccountName -NewPassword (ConvertTo-SecureString $password -AsPlainText -Force) -Reset
-        Set-ADUser "$user" -TrustedForDelegation $False -AllowReversiblePasswordEncryption $False -CannotChangePassword $False -ChangePasswordAtLogon $True -CompoundIdentitySupported $True -KerberosEncryptionType AES256 -PasswordNeverExpires $False -PasswordNotRequired $False -Clear scriptPath -SmartcardLogonRequired $False -AccountNotDelegated $True
-        Set-ADAccountControl "$user" -DoesNotRequirePreAuth $False -AllowReversiblePasswordEncryption $False -TrustedForDelegation $False -TrustedToAuthForDelegation $False -UseDESKeyOnly $False -AccountNotDelegated $True
-    }
+    $sam = $user.SamAccountName
+
+    # Reset password
+    Set-ADAccountPassword `
+        -Identity $sam `
+        -NewPassword $defaultPassword `
+        -Reset
+
+    # Harden account settings
+    Set-ADUser `
+        -Identity $sam `
+        -ChangePasswordAtLogon $true `
+        -PasswordNeverExpires $false `
+        -PasswordNotRequired $false `
+        -CannotChangePassword $false `
+        -AllowReversiblePasswordEncryption $false `
+        -TrustedForDelegation $false `
+        -TrustedToAuthForDelegation $false `
+        -AccountNotDelegated $true `
+        -UseDESKeyOnly $false `
+        -DoesNotRequirePreAuth $false `
+        -KerberosEncryptionType @("AES128","AES256") `
+        -ScriptPath $null `
+        -SmartcardLogonRequired $false
 }
 
 Write-Output "Mitigating RID Hijacking and deleting ResetData keys" # ResetData keys are security questions, which as of writing this, are stored IN PLAIN TEXT (wtf microsoft)
@@ -232,30 +264,34 @@ foreach($item in $items) {
         reg delete "HKLM\SAM\SAM\Domains\Account\Users\$name" /v ResetData /f | Out-Null
     }
 }
+Write-Output "Deleting SIDHistory from users and groups"
 
-Write-Output "Deleting SID Histories from users and groups"
-
-# Remove SIDHistory from users who have it
-$users = Get-ADUser -Filter {SIDHistory -like "*"} -Properties SIDHistory, servicePrincipalName
-Set-ADUser -Identity $user -Clear SIDHistory
+# USERS
+$users = Get-ADUser -Filter { SIDHistory -like "*" } `
+    -Properties SIDHistory, servicePrincipalName, SamAccountName
 
 foreach ($user in $users) {
+
     if ($user.SIDHistory) {
         Write-Output "Clearing SIDHistory from user: $($user.SamAccountName)"
-        Set-ADUser -Identity $user -Clear SIDHistory
+        Set-ADUser -Identity $user.SamAccountName -Clear SIDHistory
     }
+
     if ($user.servicePrincipalName) {
         Write-Output "Clearing servicePrincipalName from user: $($user.SamAccountName)"
-        Set-ADUser -Identity $user -Clear servicePrincipalName
+        Set-ADUser -Identity $user.SamAccountName -Clear servicePrincipalName
     }
 }
 
-# Remove SIDHistory from groups who have it
-$groups = Get-ADGroup -Filter {SIDHistory -like "*"} -Properties SIDHistory
+# GROUPS
+$groups = Get-ADGroup -Filter { SIDHistory -like "*" } `
+    -Properties SIDHistory, Name
+
 foreach ($group in $groups) {
+
     if ($group.SIDHistory) {
-        Write-Output "Clearing SIDHistory from group: $($group.SamAccountName)"
-        Set-ADGroup -Identity $group -Clear SIDHistory
+        Write-Output "Clearing SIDHistory from group: $($group.Name)"
+        Set-ADGroup -Identity $group.Name -Clear SIDHistory
     }
 }
 
