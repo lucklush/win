@@ -255,16 +255,37 @@ foreach ($group in $groups) {
     }
 }
 
-# Starting search in users' home directories
-Write-Host "--------------------All-home-dirs----------------------"
-# Get all directories inside C:\Users
-$usersDirs = Get-ChildItem -Path C:\Users -Directory
+# Ask for the username to skip
+$skipUser = Read-Host "Enter your username (case-sensitive)"
 
-# Loop through each directory and generate a tree for it
-foreach ($dir in $usersDirs) {
-    Write-Host "Tree for $($dir.FullName)"
-    Write-Host "-------------------------------------------------------------"
-    tree $dir.FullName /F /A
-    Write-Host "-------------------------------------------------------------"
-    Write-Host ""
+function Show-Tree {
+    param(
+        [string]$Path = ".",
+        [int]$Indent = 0
+    )
+
+    Get-ChildItem -LiteralPath $Path | ForEach-Object {
+        # Skip hidden folders
+        if ($_.PSIsContainer -and ($_.Attributes -band [System.IO.FileAttributes]::Hidden)) {
+            return
+        }
+
+        # Skip the specified user folder if in C:\Users
+        if ($Path -eq "C:\Users" -and $_.PSIsContainer -and $_.Name -eq $skipUser) {
+            return
+        }
+
+        # Print the current item
+        Write-Output (" " * $Indent + "|-- " + $_.Name)
+
+        # Recurse into directories
+        if ($_.PSIsContainer) {
+            Show-Tree -Path $_.FullName -Indent ($Indent + 2)
+        }
+    }
 }
+
+# Start at C:\Users
+Show-Tree -Path "C:\Users"
+Write-Host "Look for any prohibited files/malware above. Still do a manual search though"
+pause
