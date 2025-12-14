@@ -139,17 +139,17 @@ foreach ($acct in $adAccounts) {
 # 3. Convert admins → users if they appear in user list
 foreach ($acct in $adAccounts) {
     if ($acct -in $users -and $acct -notin $admins -and $acct -notin $defaultUsers) {
-        try {
+        
             # Add to regular users group
             Add-ADGroupMember -Identity $adUsersGroup -Members $acct -ErrorAction SilentlyContinue
 
             # Remove from admin group
             Remove-ADGroupMember -Identity $adAdminsGroup -Members $acct -Confirm:$false -ErrorAction SilentlyContinue
+            Remove-ADGroupMember -Identity "Administrators" -Members $acct -Confirm:$false -ErrorAction SilentlyContinue
+            Remove-ADGroupMember -Identity "Enterprise Admins" -Members $acct -Confirm:$false -ErrorAction SilentlyContinue
 
             Write-Host "Moved $acct to $adUsersGroup and removed from $adAdminsGroup"
-        } catch {
-            Write-Warning "Could not move $acct: $_"
-        }
+        
     }
 }
 
