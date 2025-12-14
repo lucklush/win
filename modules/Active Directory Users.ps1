@@ -57,37 +57,41 @@ while(!(Test-Path .\UserData.txt)) {
 
 clear
 
-$userData = @{}
-
+# Read file
 $lines = Get-Content .\UserData.txt
 
-foreach($line in $lines) {
-    $line = ([string]$line.ToString()).Trim()
-    $index = $line.IndexOf("|")
-    if($index -eq -1) {
-        $groups = [System.Collections.ArrayList]::new()
-        $groups.add("Domain Users") | Out-Null
-        $userData[$line] = $groups # If no groups are provided, add user to Users group
-    } else {
-        $user = $line.Substring(0, $index).Trim()
-        $rawGroups = $line.Substring($index + 1).Split(",")
-        $groups = [System.Collections.ArrayList]::new()
-        for($i = 0; $i -lt $rawGroups.Count; $i += 1) {
-            $groups.add($rawGroups[$i].Trim()) | Out-Null
+# Variables for data from file
+$defaultUsers = "Administrator","DefaultAccount","Guest","WDAGUtilityAccount","SYSTEM","LOCAL SERVICE","NETWORK SERVICE","DWM-1","UMFD-0","UMFD-1","sshd","ssh-agent","LxssManagerUser","IUSR","IWAM","DefaultAppPool","vmms","vmcompute","MSSQLSERVER","SQLSERVERAGENT", "Spooler","TrustedInstaller"
+$mode = ""
+$admins = @()
+$users = @()
+
+foreach ($line in $lines) {
+    if ([string]::IsNullOrWhiteSpace($line)) { continue }
+
+    switch -Regex ($line) {
+        '^Authorized Administrators:' { $mode = "admins"; continue }
+        '^Authorized Users:' { $mode = "users"; continue }
+
+        default {
+            if ($mode -eq "admins") { $admins += $line.Trim() }
+            elseif ($mode -eq "users") { $users += $line.Trim() }
         }
-        if(!$groups.Contains("Domain Users")) {
-            $groups.add("Domain Users") | Out-Null
-        }
-        $userData[$user] = $groups
     }
 }
 
-if(!$userData.Contains($currentUser)) {
-    $groups = [System.Collections.ArrayList]::new()
-    $groups.Add("Administrators") | Out-Null
-    $groups.Add("Domain Users") | Out-Null
-    $userData[$currentUser] = $groups
-}
+Write-Host "Admins from file: $($admins -join ', ')"
+Write-Host "Users from file: $($users -join ', ')"
+
+# ------------------------------
+# START ACCOUNT ENFORCEMENT LOGIC
+# ------------------------------
+
+$localAdminsGroup = "Administrators"
+$localUsersGroup  = "Domain Users"
+
+# Default password for new accounts
+$defaultPassword = ConvertTo-SecureString "CyberPatriot1#" -AsPlainText -Force
 
 Write-Output "Unlocking all accounts"
 
