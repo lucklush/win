@@ -18,6 +18,7 @@ netsh advfirewall firewall set rule name="Remote Assistance (RA Server TCP-In)" 
 netsh advfirewall firewall set rule name="Remote Assistance (SSDP TCP-In)" new enable=no
 netsh advfirewall firewall set rule name="Remote Assistance (SSDP UDP-In)" new enable=no
 netsh advfirewall firewall set rule name="Remote Assistance (TCP-In)" new enable=no
+netsh advfirewall firewall set rule name="RemoteTask-In-TCP" new enable=no
 netsh advfirewall firewall set rule name="Telnet Server" new enable=no
 
 netsh advfirewall firewall set rule group="Network Discovery" new enable=No
