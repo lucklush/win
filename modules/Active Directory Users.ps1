@@ -329,3 +329,36 @@ function Show-Tree {
 Show-Tree -Path "C:\Users"
 Write-Host "Look for any prohibited files/malware above. Still do a manual search though"
 pause
+$root = "C:\Windows\SYSVOL"
+
+function Show-TreeSysvol {
+    param (
+        [string]$Path,
+        [string]$Prefix = ""
+    )
+
+    $items = Get-ChildItem -LiteralPath $Path -Force -ErrorAction SilentlyContinue
+
+    for ($i = 0; $i -lt $items.Count; $i++) {
+        $item = $items[$i]
+        $isLast = ($i -eq $items.Count - 1)
+
+        $connector = if ($isLast) { "└── " } else { "├── " }
+        Write-Output "$Prefix$connector$($item.Name)"
+
+        if ($item.PSIsContainer) {
+            $newPrefix = if ($isLast) {
+                "$Prefix    "
+            } else {
+                "$Prefix│   "
+            }
+
+            Show-Tree -Path $item.FullName -Prefix $newPrefix
+        }
+    }
+}
+
+Write-Output $root
+Show-TreeSysvol -Path $root
+Write-Host "Look for any suspicious startup scripts especially .bat and .ps1 files"
+pause
