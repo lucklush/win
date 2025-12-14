@@ -99,12 +99,36 @@ if($keys.ServerLevelPluginDll) {
     }
 }
 
+# Path to DNS Zones in the registry
+$zonesPath = "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\DNS Server\Zones"
+
+# Get all top-level zone subkeys
+$zoneKeys = Get-ChildItem "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\DNS Server\Zones"
+
+foreach ($zone in $zoneKeys) {
+    $zoneName = $zone.PSChildName
+    $zoneRegPath = "$zonesPath\$zoneName"
+
+    Write-Output "Updating zone: $zoneName"
+
+    # Set SecureSecondaries to 1
+    reg add "HKLM\$zoneRegPath" /v SecureSecondaries /t REG_DWORD /d 1 /f
+
+    # Set AllowUpdate to 2
+    reg add "HKLM\$zoneRegPath" /v AllowUpdate /t REG_DWORD /d 2 /f
+
+    # Set DsIntegrated to 1 (AD-integrated, domain replication)
+    reg add "HKLM\$zoneRegPath" /v DsIntegrated /t REG_DWORD /d 1 /f
+
+    Write-Output "Updated $zoneName successfully."
+}
+
 net stop DNS
 net start DNS
 
 DNSMgmt.msc
 
-Write-Output "For every zone, set dynamic updates to secure only, disable zone transfers, set zone replication to domain without compatibility, and sign the zones (use strongest encrption algos, might need to install the AD certificate services)"
+Write-Output "For every zone sign the zones (use strongest encrption algos, might need to install the AD certificate services)"
 
 Write-Output "If applicable, integrate all DNS zones with Active Directory (change zone type on a zone label and check the bottom checkbox). This must be done before signing"
 
