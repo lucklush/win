@@ -309,10 +309,22 @@ foreach($service in $enabledServices) { # Double pass in order to start services
 
 $isADInstalled = (GetSettings).ADInstalled
 
-if($isADInstalled) {
-    foreach($service in $adServices) {
+if ($isADInstalled) {
+    foreach ($service in $adServices) {
         sc.exe config "$service" start=auto
         net.exe start "$service"
+    }
+
+    # Prompt the user about AD CS
+    $adcsResponse = Read-Host "Is Active Directory Certificate Services (AD CS) required? (Y/N)"
+    if ($adcsResponse -match '^[Yy]$') {
+        sc.exe config "certsvc" start=auto
+        net.exe start "certsvc"
+    } elseif ($adcsResponse -match '^[Nn]$') {
+        sc.exe config "certsvc" start=disabled
+        net.exe stop "certsvc"
+    } else {
+        Write-Host "Invalid input. Skipping AD CS configuration."
     }
 }
 
