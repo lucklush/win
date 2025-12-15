@@ -96,9 +96,10 @@ $defaultPassword = ConvertTo-SecureString "CyberPatriot1#" -AsPlainText -Force
 
 Write-Output "Unlocking all accounts"
 
-$users = Get-ADUser -Filter * -Properties *
+$usersL = Get-ADUser -Filter * -Properties *
+Write-Host $users
 
-foreach($user in $users) { Set-AdObject "$($user.ObjectGUID)" -ProtectedFromAccidentalDeletion $false -Confirm:$false }
+foreach($user in $usersL) { Set-AdObject "$($user.ObjectGUID)" -ProtectedFromAccidentalDeletion $false -Confirm:$false }
 
 $adAccounts = Get-ADUser -Filter * | Select-Object -ExpandProperty SamAccountName | ForEach-Object {
     if ($_ -like "*\*") {
@@ -107,6 +108,7 @@ $adAccounts = Get-ADUser -Filter * | Select-Object -ExpandProperty SamAccountNam
         $_
     }
 }
+Write-Host $adAccounts
 
 # 1. Delete bad users
 foreach ($acct in $adAccounts) {
@@ -124,19 +126,20 @@ $adAccounts = Get-ADUser -Filter * | Select-Object -ExpandProperty SamAccountNam
     }
 }
 
-# 2. Convert users → admins if they appear in admin list
+# 2. Convert users to admins if they appear in admin list
 foreach ($acct in $adAccounts) {
     if ($acct -in $admins -and $acct -notin $defaultUsers) {
         try {
-            Add-ADGroupMember -Identity $adAdminsGroup -Members $acct -ErrorAction SilentlyContinue
+            Add-ADGroupMember -Identity $adAdminsGroup -Members $acct
+            Add-ADGroupMember -Identity "Administrators" -Members $acct
             Write-Host "Added $acct to $adAdminsGroup"
         } catch {
-            Write-Warning "Could not add $acct to $adAdminsGroup: $_"
+            Write-Warning "Could not add $acct to $adAdminsGroup : $_"
         }
     }
 }
 
-# 3. Convert admins → users if they appear in user list
+# 3. Convert admins to users if they appear in user list
 foreach ($acct in $adAccounts) {
     if ($acct -in $users -and $acct -notin $admins -and $acct -notin $defaultUsers) {
         
@@ -337,7 +340,7 @@ foreach ($folder in $startupFolders) {
     if (Test-Path $folder) {
         $items = Get-ChildItem $folder -Force -ErrorAction SilentlyContinue
         if ($items.Count -gt 0) {
-            Write-Host "Files found in $folder:"
+            Write-Host "Files found in $folder :"
             $items | ForEach-Object { Write-Host "  $_" }
         }
     }
@@ -367,16 +370,16 @@ function Show-TreeSysvol {
         $item = $items[$i]
         $isLast = ($i -eq $items.Count - 1)
 
-        $connector = if ($isLast) { "└── " } else { "├── " }
+        $connector = if ($isLast) { "|_" } else { "---" }
         Write-Output "$Prefix$connector$($item.Name)"
 
         if ($item.PSIsContainer) {
             $newPrefix = if ($isLast) {
                 "$Prefix    "
             } else {
-                "$Prefix│   "
+                "$Prefix|   "
             }
-
+            
             Show-Tree -Path $item.FullName -Prefix $newPrefix
         }
     }
