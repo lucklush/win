@@ -1477,6 +1477,8 @@ foreach($flag in $clientFlags.Keys) {
 #Seem to be unavailable in the smb cmdlet
 reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows\LanmanServer" /v EnableAuthRateLimiter /t REG_DWORD /d 1 /f
 reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows\LanmanServer" /v InvalidAuthenticationDelayTimeInMs /t REG_DWORD /d 2000 /f
+reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows\LanmanServer" /v MinSmb2Dialect /t REG_DWORD /d 0x0300 /f
+reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows\LanmanWorkstation" /v MinClientSmb2Dialect /t REG_DWORD /d 0x0300 /f
 
 $shares = Get-SmbShare
 
