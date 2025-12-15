@@ -253,5 +253,31 @@ function Show-Tree {
 
 # Start at C:\Users
 Show-Tree -Path "C:\Users"
+
+# Get all user Startup folders
+$startupFolders = Get-ChildItem "C:\Users\" -Directory | ForEach-Object {
+    Join-Path $_.FullName "AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Startup"
+}
+
+# Check each folder
+foreach ($folder in $startupFolders) {
+    if (Test-Path $folder) {
+        $items = Get-ChildItem $folder -Force -ErrorAction SilentlyContinue
+        if ($items.Count -gt 0) {
+            Write-Host "Files found in $folder:"
+            $items | ForEach-Object { Write-Host "  $_" }
+        }
+    }
+}
+
+$folder = "C:\ProgramData\Microsoft\Windows\Start Menu\Programs\StartUp"
+
+if (Test-Path $folder) {
+    $items = Get-ChildItem $folder -Force -ErrorAction SilentlyContinue
+    if ($items.Count -gt 0) {
+        $items | ForEach-Object { Write-Host $_.FullName }
+    }
+}
+
 Write-Host "Look for any prohibited files/malware above. Still do a manual search though"
 pause
