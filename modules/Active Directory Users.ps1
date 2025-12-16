@@ -142,17 +142,14 @@ foreach ($acct in $adAccounts) {
 # 3. Convert admins to users if they appear in user list
 foreach ($acct in $adAccounts) {
     if ($acct -in $users -and $acct -notin $admins -and $acct -notin $defaultUsers) {
-        
-            # Add to regular users group
-            Add-ADGroupMember -Identity $adUsersGroup -Members $acct -ErrorAction SilentlyContinue
-
+            if (-not (Get-ADUser -Identity $acct | Get-ADPrincipalGroupMembership | Where-Object { $_.Name -eq $adUsersGroup })) {
+                Add-ADGroupMember -Identity $adUsersGroup -Members $acct -ErrorAction SilentlyContinue
+                Write-Host "Added $acct to $adUsersGroup"
+            }
             # Remove from admin group
             Remove-ADGroupMember -Identity $adAdminsGroup -Members $acct -Confirm:$false -ErrorAction SilentlyContinue
             Remove-ADGroupMember -Identity "Administrators" -Members $acct -Confirm:$false -ErrorAction SilentlyContinue
-            Remove-ADGroupMember -Identity "Enterprise Admins" -Members $acct -Confirm:$false -ErrorAction SilentlyContinue
-
-            Write-Host "Moved $acct to $adUsersGroup and removed from $adAdminsGroup"
-        
+            Remove-ADGroupMember -Identity "Enterprise Admins" -Members $acct -Confirm:$false -ErrorAction SilentlyContinue        
     }
 }
 
@@ -208,10 +205,14 @@ $ErrorActionPreference = "Continue"
 
 Write-Output "Enabling all non-builtin accounts"
 
-$allUsers = $users + $admins
+$usernames = $users + $admins
 
 foreach($user in $allUsers) {
     Enable-ADAccount "$user"
+}
+
+$allUsers = foreach ($name in $usernames) {
+    Get-ADUser -Filter "SamAccountName -eq '$name'" -Properties SamAccountName, Name
 }
 
 $guestUser = getGuestUser
@@ -232,10 +233,16 @@ foreach ($user in $allUsers) {
         -NewPassword $defaultPassword `
         -Reset
 
-    # Harden account settings
     Set-ADUser `
         -Identity $sam `
         -ChangePasswordAtLogon $true `
+        -KerberosEncryptionType @("AES128","AES256") `
+        -ScriptPath $null `
+        -SmartcardLogonRequired $false
+        
+    # Harden account settings
+    Set-ADAccountControl `
+        -Identity $sam `
         -PasswordNeverExpires $false `
         -PasswordNotRequired $false `
         -CannotChangePassword $false `
@@ -245,9 +252,6 @@ foreach ($user in $allUsers) {
         -AccountNotDelegated $true `
         -UseDESKeyOnly $false `
         -DoesNotRequirePreAuth $false `
-        -KerberosEncryptionType @("AES128","AES256") `
-        -ScriptPath $null `
-        -SmartcardLogonRequired $false
 }
 
 Write-Output "Mitigating RID Hijacking and deleting ResetData keys" # ResetData keys are security questions, which as of writing this, are stored IN PLAIN TEXT (wtf microsoft)
