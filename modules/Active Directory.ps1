@@ -400,7 +400,7 @@ Get-ADDomain | ForEach-Object {
     }
 }
 
-Get-ADOrganizationalUnit -Filter -Properties ManagedBy | ForEach-Object {
+Get-ADOrganizationalUnit -Filter * -Properties ManagedBy | ForEach-Object {
     if ($_.ManagedBy) {
         Write-Output "Clearing ManagedBy delegation for the following group: $($_.Name)"
         try {
