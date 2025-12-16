@@ -378,31 +378,47 @@ Set-Auditing -Domain $Domain -Rules $Rules -ObjectCN "CN=AdminSDHolder,CN=System
 
 Write-Host "[" -ForegroundColor white -NoNewLine; Write-Host "SUCCESS" -ForegroundColor green -NoNewLine; Write-Host "] Clearing ManagedBy delegations" -ForegroundColor white
 
-Get-ADComputer -Filter * | ForEach-Object {
-    if($_.ManagedBy) {
-        Write-Output "Clearing ManagedBy delegation for the following computer: $($_.Name)"
-        Set-ADComputer $_ -Clear ManagedBy
+Get-ADComputer -Filter * -Properties ManagedBy | ForEach-Object {
+    if ($_.ManagedBy) {
+        Write-Output "Clearing ManagedBy delegation for the following group: $($_.Name)"
+        try {
+            Set-ADComputer $_ -Clear ManagedBy -ErrorAction Stop
+        } catch {
+            Write-Warning "Could not clear ManagedBy for $($_.Name): $_"
+        }
     }
 }
 
 Get-ADDomain | ForEach-Object {
-    if($_.ManagedBy) {
-        Write-Output "Clearing ManagedBy delegation for the following domain: $($_.Name)"
-        Set-ADDomain $_ -Clear ManagedBy
-    }
-}
-
-Get-ADOrganizationalUnit -Filter * | ForEach-Object {
-    if($_.ManagedBy) {
-        Write-Output "Clearing ManagedBy delegation for the following organizational unit: $($_.Name)"
-        Set-ADOrganizationalUnit $_ -Clear ManagedBy
-    }
-}
-
-Get-ADGroup -Filter * | ForEach-Object {
-    if($_.ManagedBy) {
+    if ($_.ManagedBy) {
         Write-Output "Clearing ManagedBy delegation for the following group: $($_.Name)"
-        Set-ADGroup $_ -Clear ManagedBy
+        try {
+            Set-ADDomain $_ -Clear ManagedBy -ErrorAction Stop
+        } catch {
+            Write-Warning "Could not clear ManagedBy for $($_.Name): $_"
+        }
+    }
+}
+
+Get-ADOrganizationalUnit -Filter -Properties ManagedBy | ForEach-Object {
+    if ($_.ManagedBy) {
+        Write-Output "Clearing ManagedBy delegation for the following group: $($_.Name)"
+        try {
+            Set-ADOrganizationalUnit $_ -Clear ManagedBy -ErrorAction Stop
+        } catch {
+            Write-Warning "Could not clear ManagedBy for $($_.Name): $_"
+        }
+    }
+}
+
+Get-ADGroup -Filter * -Properties ManagedBy | ForEach-Object {
+    if ($_.ManagedBy) {
+        Write-Output "Clearing ManagedBy delegation for the following group: $($_.Name)"
+        try {
+            Set-ADGroup $_ -Clear ManagedBy -ErrorAction Stop
+        } catch {
+            Write-Warning "Could not clear ManagedBy for $($_.Name): $_"
+        }
     }
 }
 
