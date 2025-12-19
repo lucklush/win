@@ -8,6 +8,7 @@ Set-NetFirewallProfile -Profile Domain,Public,Private -Enabled True
 Set-NetFirewallProfile -DefaultInboundAction Block -DefaultOutboundAction Allow -NotifyOnListen True -LogFileName %SystemRoot%\System32\logfiles\firewall\domainfw.log
 Set-NetFirewallProfile -LogBlocked True -LogMaxSizeKilobytes 16384 -LogAllowed True
 Set-NetFirewallProfile -Name Public -AllowLocalFirewallRules False
+Set-NetFirewallRule * -Enabled False -Action NotConfigured
 netsh advfirewall set allprofiles settings unicastresponsetomulticast disable
 netsh advfirewall firewall set multicastbroadcastresponse disable
 netsh advfirewall firewall set multicastbroadcastresponse mode=disable profile=all
@@ -90,7 +91,6 @@ netsh advfirewall firewall add rule name="Block wscript.exe netconns" program="%
 netsh advfirewall firewall add rule name="Block wscript.exe netconns" program="%systemroot%\SysWOW64\wscript.exe" protocol=tcp dir=out enable=yes action=block profile=any
 #Firewall script
 #Disable every pre-existing rule
-Set-NetFirewallRule * -Enabled False -Action NotConfigured
 
 #Block multiple Windows features by pre-existing rules
 Set-NetFirewallRule -DisplayGroup "AllJoyn Router","*BranchCache*","Cast to Device functionality","Connect","Cortana","Delivery Optimization","DIAL protocol server","Feedback Hub","File and Printer Sharing","Get Office","Groove Music","HomeGroup","iSCSI Service","mDNS","Media Center Extenders","Microsoft Edge","Microsoft Photos","Microsoft Solitaire Collection","Movies & TV","MSN Weather","Network Discovery","OneNote","*Wi-Fi*","Paint 3D","Proximity Sharing","*Remote*","Secure Socket Tunneling Protocol","*Skype*","SNMP Trap","Store","*Smart Card*","Virtual Machine Monitoring","Windows Collaboration Computer Name Registration Service","*Windows Media Player*","Windows Peer to Peer Collaboration Foundation","Windows View 3D Preview","*Wireless*","*WFD*","*Xbox*","3D Builder","Captive Portal Flow","Take a Test","Wallet" -Action Block -Enabled True -Profile Any
