@@ -112,13 +112,13 @@ foreach ($zone in $zoneKeys) {
     Write-Output "Updating zone: $zoneName"
 
     # Set SecureSecondaries to 1
-    reg add "HKLM\$zoneRegPath" /v SecureSecondaries /t REG_DWORD /d 1 /f
+    reg add "$zoneRegPath" /v SecureSecondaries /t REG_DWORD /d 1 /f
 
     # Set AllowUpdate to 2
-    reg add "HKLM\$zoneRegPath" /v AllowUpdate /t REG_DWORD /d 2 /f
+    reg add "$zoneRegPath" /v AllowUpdate /t REG_DWORD /d 2 /f
 
     # Set DsIntegrated to 1 (AD-integrated, domain replication)
-    reg add "HKLM\$zoneRegPath" /v DsIntegrated /t REG_DWORD /d 1 /f
+    reg add "$zoneRegPath" /v DsIntegrated /t REG_DWORD /d 1 /f
 
     Write-Output "Updated $zoneName successfully."
 }
